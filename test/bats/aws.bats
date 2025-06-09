@@ -12,8 +12,6 @@ export REGION=${REGION:-us-west-2}
 export ACCOUNT_NUMBER=$(aws --region $REGION  sts get-caller-identity --query Account --output text)
 export AWS_USER_NAME=$(aws sts get-caller-identity --query 'Arn' --output text | cut -d'/' -f2)
 export CSI_DRIVER_INSTALLED_NAMESPACE=${CSI_DRIVER_INSTALLED_NAMESPACE:-"kube-system"}
-# export CSI_DRIVER_LABEL_NAME=${CSI_DRIVER_LABEL_NAME:-"app=secrets-store-csi-driver"}
-# export CSI_DRIVER_CONTAINER_NAME=${CSI_DRIVER_CONTAINER_NAME:-"secret-store"}
 export CLUSTER_NAME=$(oc get infrastructure cluster -o=jsonpath='{.status.infrastructureName}')
 export OIDC_PROVIDER=$(oc get authentication.config.openshift.io cluster -o jsonpath='{.spec.serviceAccountIssuer}' | sed -e 's/^https\?:\/\///')
 
@@ -188,9 +186,6 @@ teardown_file() {
 
     aws iam detach-user-policy --user-name $AWS_USER_NAME --policy-arn $PAS_POLICY
     aws iam delete-policy --policy-arn $PAS_POLICY
-
-    # rm -rf $BATS_TEST_DIR/secret-iampolicy.json
-    # rm -rf $BATS_TEST_DIR/secret-iamtrust.json
 }
 
 @test "Install aws provider" {
@@ -299,6 +294,6 @@ teardown_file() {
   assert_success
 }
 
-teardown_file() {
-  archive_info || true
-}
+# teardown_file() {
+#   archive_info || true
+# }
