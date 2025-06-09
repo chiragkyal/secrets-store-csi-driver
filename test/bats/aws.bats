@@ -15,7 +15,7 @@ export CSI_DRIVER_INSTALLED_NAMESPACE=${CSI_DRIVER_INSTALLED_NAMESPACE:-"kube-sy
 # export CSI_DRIVER_LABEL_NAME=${CSI_DRIVER_LABEL_NAME:-"app=secrets-store-csi-driver"}
 # export CSI_DRIVER_CONTAINER_NAME=${CSI_DRIVER_CONTAINER_NAME:-"secret-store"}
 export CLUSTER_NAME=$(oc get infrastructure cluster -o=jsonpath='{.status.infrastructureName}')
-export OIDC_PROVIDER=$(oc get authentication.config.openshift.io cluster -o json | jq -r .spec.serviceAccountIssuer| sed -e "s/^https:\/\///")
+export OIDC_PROVIDER=$(oc get authentication.config.openshift.io cluster -o jsonpath='{.spec.serviceAccountIssuer}' | sed -e 's/^https\?:\/\///')
 
 BATS_TEST_DIR=test/bats/tests/aws
 
@@ -76,6 +76,7 @@ EOF
   --policy-document file://$BATS_TEST_DIR/sm-ssm-iam-policy.json \
   --query 'Policy.Arn' --output text)
 
+  aws configure set cli_pager ""
   aws iam attach-user-policy --user-name $AWS_USER_NAME --policy-arn $PAS_POLICY
 
   #Create test secrets
@@ -116,6 +117,7 @@ EOF
   ]
 }
 EOF
+
   ROLE=$(aws iam create-role \
     --role-name "${CLUSTER_NAME}-aws-my-namespace-aws-creds" \
     --assume-role-policy-document file://$BATS_TEST_DIR/secret-iamtrust.json \
@@ -158,7 +160,7 @@ EOF
   #TODO
   # envsubst < $BATS_TEST_DIR/secret.yaml | kubectl --namespace $NAMESPACE apply -f -
 
-  run kubectl create sa basic-test-mount-sa -n $NAMESPACE 
+  run kubectl create sa basic-test-mount-sa -n $NAMESPACE
   assert_success 
 
   run kubectl annotate -n $NAMESPACE sa/basic-test-mount-sa eks.amazonaws.com/role-arn="$ROLE"
