@@ -32,9 +32,9 @@ export PM_ROTATION_TEST_NAME=ParameterStoreRotationTest-$UUID
 
 setup_file() {
 
-  export AWS_USER_PAS_POLICY="${CLUSTER_NAME}-ParameterAndSecret-access-${UUID}"
-  export CSI_APP_ROLE_NAME="${CLUSTER_NAME}-csi-app-role-${UUID}"
-  export CSI_APP_POLICY_NAME="${CLUSTER_NAME}-csi-app-policy-${UUID}"
+  export AWS_USER_PAS_POLICY="${CLUSTER_NAME:0:12}-ParameterAndSecret-access-${UUID}"
+  export CSI_APP_ROLE_NAME="${CLUSTER_NAME:0:12}-csi-app-role-${UUID}"
+  export CSI_APP_POLICY_NAME="${CLUSTER_NAME:0:12}-csi-app-policy-${UUID}"
 
   cat > $BATS_TEST_DIR/aws-user-pas-policy.json <<EOF
 {
