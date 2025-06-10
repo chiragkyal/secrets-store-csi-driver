@@ -78,7 +78,6 @@ EOF
   --policy-document file://$BATS_TEST_DIR/aws-user-pas-policy.json \
   --query 'Policy.Arn' --output text)
 
-  aws configure set cli_pager ""
   aws iam attach-user-policy --user-name $AWS_USER_NAME --policy-arn $PAS_POLICY
 
   #Create test secrets
