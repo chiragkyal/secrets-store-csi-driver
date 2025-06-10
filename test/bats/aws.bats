@@ -5,7 +5,7 @@ load helpers
 WAIT_TIME=120
 SLEEP_TIME=1
 PROVIDER_YAML=https://raw.githubusercontent.com/aws/secrets-store-csi-driver-provider-aws/main/deployment/aws-provider-installer.yaml
-export NAMESPACE="test-namespace"
+export NAMESPACE="sscsi-namespace"
 POD_NAME=basic-test-mount
 export REGION=${REGION:-us-west-2}
 
@@ -32,7 +32,11 @@ export PM_ROTATION_TEST_NAME=ParameterStoreRotationTest-$UUID
 
 setup_file() {
 
-  cat > $BATS_TEST_DIR/sm-ssm-iam-policy.json <<EOF
+  export AWS_USER_PAS_POLICY="${CLUSTER_NAME}-ParameterAndSecret-access-${UUID}"
+  export CSI_APP_ROLE_NAME="${CLUSTER_NAME}-csi-app-role-${UUID}"
+  export CSI_APP_POLICY_NAME="${CLUSTER_NAME}-csi-app-policy-${UUID}"
+
+  cat > $BATS_TEST_DIR/aws-user-pas-policy.json <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -70,8 +74,8 @@ setup_file() {
 }
 EOF
 
-  PAS_POLICY=$(aws iam create-policy --policy-name "${CLUSTER_NAME}-ParameterAndSecret-access" \
-  --policy-document file://$BATS_TEST_DIR/sm-ssm-iam-policy.json \
+  PAS_POLICY=$(aws iam create-policy --policy-name "${AWS_USER_PAS_POLICY}" \
+  --policy-document file://$BATS_TEST_DIR/aws-user-pas-policy.json \
   --query 'Policy.Arn' --output text)
 
   aws configure set cli_pager ""
@@ -96,7 +100,7 @@ EOF
   run kubectl label ns $NAMESPACE security.openshift.io/scc.podSecurityLabelSync=false pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/audit=privileged pod-security.kubernetes.io/warn=privileged --overwrite
   assert_success
 
-  cat > $BATS_TEST_DIR/secret-iamtrust.json <<EOF
+  cat > $BATS_TEST_DIR/csi-app-assume-role-policy-document.json <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -117,11 +121,11 @@ EOF
 EOF
 
   ROLE=$(aws iam create-role \
-    --role-name "${CLUSTER_NAME}-aws-my-namespace-aws-creds" \
-    --assume-role-policy-document file://$BATS_TEST_DIR/secret-iamtrust.json \
+    --role-name "${CSI_APP_ROLE_NAME}" \
+    --assume-role-policy-document file://$BATS_TEST_DIR/csi-app-assume-role-policy-document.json \
     --query "Role.Arn" --output text)
 
-  cat > $BATS_TEST_DIR/secret-iampolicy.json <<EOF
+  cat > $BATS_TEST_DIR/csi-app-secret-iam-policy.json <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -147,16 +151,13 @@ EOF
 }
 EOF
 
-  POLICY=$(aws iam create-policy --policy-name "${CLUSTER_NAME}-aws-my-namespace-aws-creds" \
-    --policy-document file://$BATS_TEST_DIR/secret-iampolicy.json \
+  POLICY=$(aws iam create-policy --policy-name "${CSI_APP_POLICY_NAME}" \
+    --policy-document file://$BATS_TEST_DIR/csi-app-secret-iam-policy.json \
     --query 'Policy.Arn' --output text)
 
   aws iam attach-role-policy \
-    --role-name "${CLUSTER_NAME}-aws-my-namespace-aws-creds" \
+    --role-name "${CSI_APP_ROLE_NAME}" \
     --policy-arn $POLICY --output text
-
-  #TODO
-  # envsubst < $BATS_TEST_DIR/secret.yaml | kubectl --namespace $NAMESPACE apply -f -
 
   run kubectl create sa basic-test-mount-sa -n $NAMESPACE
   assert_success 
@@ -176,13 +177,9 @@ teardown_file() {
     aws ssm delete-parameter --name $PM_ROTATION_TEST_NAME --region $REGION
     aws secretsmanager delete-secret --secret-id $SM_ROT_TEST_NAME --force-delete-without-recovery --region $REGION
 
-    # kubectl delete sa basic-test-mount-sa -n $NAMESPACE
-    # kubectl delete secret/aws-creds -n $NAMESPACE
-    # kubectl delete ns $NAMESPACE 
-
-    aws iam detach-role-policy --role-name ${CLUSTER_NAME}-aws-my-namespace-aws-creds --policy-arn arn:aws:iam::$ACCOUNT_NUMBER:policy/${CLUSTER_NAME}-aws-my-namespace-aws-creds
-    aws iam delete-policy --policy-arn arn:aws:iam::$ACCOUNT_NUMBER:policy/${CLUSTER_NAME}-aws-my-namespace-aws-creds --region $REGION
-    aws iam delete-role --role-name ${CLUSTER_NAME}-aws-my-namespace-aws-creds --region $REGION --output json
+    aws iam detach-role-policy --role-name "${CSI_APP_ROLE_NAME}" --policy-arn "$POLICY"
+    aws iam delete-policy --policy-arn "$POLICY"
+    aws iam delete-role --role-name "${CSI_APP_ROLE_NAME}"
 
     aws iam detach-user-policy --user-name $AWS_USER_NAME --policy-arn $PAS_POLICY
     aws iam delete-policy --policy-arn $PAS_POLICY
