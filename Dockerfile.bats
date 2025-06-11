@@ -12,7 +12,7 @@ RUN aws --version
 
 # "src" is built by a prow job when building final images.
 # It contains full repository sources + jq + pyhon with yaml module.
-FROM src
+FROM registry.ci.openshift.org/ocp/4.19:base-rhel9
 COPY --from=builder /go/src/github.com/openshift/secrets-store-csi-driver/bats /usr/local
 COPY --from=builder /usr/local/bin/helm /usr/local/bin
 COPY --from=builder /usr/local/bin/kubectl /usr/local/bin
@@ -20,6 +20,11 @@ COPY --from=builder /usr/local/bin/yq /usr/local/bin
 COPY --from=builder /usr/local/aws-cli/ /usr/local/aws-cli/
 RUN ln -s /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws
 RUN aws --version
+COPY . .
+
+ENV OPENSHIFT_CLIENT_VERSION="4.16.0"
+RUN curl -Lo oc.tar.gz https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OPENSHIFT_CLIENT_VERSION}/openshift-client-linux-${OPENSHIFT_CLIENT_VERSION}.tar.gz
+RUN tar xvzOf oc.tar.gz oc > oc && chmod +x oc && mv oc bin/ && rm oc.tar.gz
 
 # Install envsubst and less
 RUN dnf install -y gettext less && dnf clean all
