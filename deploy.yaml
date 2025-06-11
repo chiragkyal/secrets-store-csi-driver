@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sscsi-bats
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sscsi-bats
+  template:
+    metadata:
+      labels:
+        app: sscsi-bats
+    spec:
+      containers:
+        - name: sscsi-bats
+          image: quay.io/ckyal/sscsi-bats
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          ports:
+            - containerPort: 80
